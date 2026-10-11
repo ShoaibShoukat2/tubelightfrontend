@@ -1,4 +1,4 @@
-import { Link, NavLink, Navigate, Outlet, Route, Routes, useNavigate, useParams } from "react-router-dom";
+import { Link, NavLink, Navigate, Outlet, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { api, clearSession, getToken, money, role } from "./api";
 import { Icon, initials } from "./icons";
@@ -9,8 +9,9 @@ import {
   TicketView, Transactions, Transfer, Wallet, WatchTask, Withdraw, Withdrawals,
 } from "./user";
 import {
-  AdminAds, AdminDeposits, AdminHome, AdminKyc, AdminLogin, AdminMethods, AdminPlans, AdminReferrals,
-  AdminReports, AdminSettings, AdminTicket, AdminTickets, AdminUsers, AdminWithdrawals,
+  AdminAds, AdminDeposit, AdminDeposits, AdminGateways, AdminHome, AdminKyc, AdminLevels, AdminLogin,
+  AdminMethods, AdminPlans, AdminReferrals, AdminReports, AdminSettings, AdminTicket, AdminTickets,
+  AdminUser, AdminUsers, AdminWithdrawal, AdminWithdrawals,
 } from "./admin";
 
 const groups = [
@@ -51,23 +52,43 @@ const adminGroups = [
     ["/admin/home", "Dashboard", "grid"],
     ["/admin/reports", "Reports", "list"],
   ]],
-  ["People", [
-    ["/admin/users", "Users", "users"],
+  ["Users", [
+    ["/admin/users", "All users", "users"],
+    ["/admin/users?scope=approved", "Approved users", "users"],
     ["/admin/kyc", "KYC", "shield"],
     ["/admin/referrals", "Referrals", "percent"],
   ]],
-  ["Money", [
-    ["/admin/deposits", "Deposits", "down"],
-    ["/admin/withdrawals", "Withdrawals", "up"],
-    ["/admin/methods", "Methods", "wallet"],
+  ["Payments", [
+    ["/admin/deposits?status=pending", "New user request", "down", "pending_deposits"],
+    ["/admin/withdrawals?status=pending", "Withdrawal request", "up", "pending_withdrawals"],
+    ["/admin/deposits?status=approved&today=1", "Today approved", "down"],
+    ["/admin/withdrawals?status=approved&today=1", "Today withdrawals", "up"],
+    ["/admin/deposits?status=rejected", "Rejected users", "down"],
+    ["/admin/deposits", "All deposits", "list"],
+    ["/admin/withdrawals", "All withdrawals", "list"],
+    ["/admin/gateways", "Easypaisa & JazzCash", "wallet"],
+    ["/admin/methods", "Withdraw methods", "wallet"],
   ]],
   ["Site", [
     ["/admin/plans", "Plans", "layers"],
+    ["/admin/levels", "Levels", "layers"],
     ["/admin/ads", "Ads", "ads"],
     ["/admin/tickets", "Tickets", "life"],
-    ["/admin/settings", "Settings", "lock"],
+    ["/admin/settings", "General setting", "lock"],
   ]],
 ];
+
+function adminLinkActive(to, location) {
+  const [path, search = ""] = to.split("?");
+  if (location.pathname !== path) return false;
+  const here = new URLSearchParams(location.search);
+  const want = new URLSearchParams(search);
+  if ([...want.keys()].length === 0) return [...here.keys()].length === 0;
+  for (const [key, value] of want.entries()) {
+    if (here.get(key) !== value) return false;
+  }
+  return true;
+}
 
 export default function App() {
   return (
@@ -109,8 +130,11 @@ export default function App() {
       <Route element={<AdminShell />}>
         <Route path="/admin/home" element={<AdminHome />} />
         <Route path="/admin/users" element={<AdminUsers />} />
+        <Route path="/admin/users/:id" element={<AdminUser />} />
         <Route path="/admin/deposits" element={<AdminDeposits />} />
+        <Route path="/admin/deposits/:id" element={<AdminDeposit />} />
         <Route path="/admin/withdrawals" element={<AdminWithdrawals />} />
+        <Route path="/admin/withdrawals/:id" element={<AdminWithdrawal />} />
         <Route path="/admin/plans" element={<AdminPlans />} />
         <Route path="/admin/ads" element={<AdminAds />} />
         <Route path="/admin/tickets" element={<AdminTickets />} />
@@ -120,6 +144,8 @@ export default function App() {
         <Route path="/admin/reports" element={<AdminReports />} />
         <Route path="/admin/methods" element={<AdminMethods />} />
         <Route path="/admin/settings" element={<AdminSettings />} />
+        <Route path="/admin/gateways" element={<AdminGateways />} />
+        <Route path="/admin/levels" element={<AdminLevels />} />
       </Route>
     </Routes>
   );
@@ -228,10 +254,16 @@ function UserShell() {
 
 function AdminShell() {
   const [open, setOpen] = useState(false);
+  const [counts, setCounts] = useState({});
+  const location = useLocation();
   const navigate = useNavigate();
   useEffect(() => {
-    if (!getToken() || role() !== "admin") navigate("/admin");
-  }, [navigate]);
+    if (!getToken() || role() !== "admin") {
+      navigate("/admin");
+      return;
+    }
+    api("/admin/dashboard/").then(setCounts).catch(() => {});
+  }, [navigate, location.pathname]);
   return (
     <div className="shell">
       {open && <button className="backdrop" aria-label="Close menu" onClick={() => setOpen(false)} />}
@@ -246,12 +278,16 @@ function AdminShell() {
           {adminGroups.map(([title, items]) => (
             <div className="nav-group" key={title}>
               <div className="nav-label">{title}</div>
-              {items.map(([to, label, icon]) => (
-                <NavLink key={to} to={to}>
-                  <Icon name={icon} />
-                  <span>{label}</span>
-                </NavLink>
-              ))}
+              {items.map(([to, label, icon, countKey]) => {
+                const count = countKey ? Number(counts[countKey] || 0) : 0;
+                return (
+                  <Link key={to} to={to} className={adminLinkActive(to, location) ? "active" : ""}>
+                    <Icon name={icon} />
+                    <span>{label}</span>
+                    {count > 0 && <em className="nav-badge">{count}</em>}
+                  </Link>
+                );
+              })}
             </div>
           ))}
         </nav>

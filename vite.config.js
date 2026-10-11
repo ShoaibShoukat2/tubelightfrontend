@@ -19,6 +19,12 @@ export default defineConfig({
         secure: false,
         headers: { "ngrok-skip-browser-warning": "true" },
       },
+      "/assets": {
+        target: "https://23d3-111-119-187-32.ngrok-free.app",
+        changeOrigin: true,
+        secure: false,
+        headers: { "ngrok-skip-browser-warning": "true" },
+      },
     },
   },
 });
